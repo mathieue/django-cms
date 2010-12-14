@@ -77,7 +77,7 @@ class Page(MpttPublisher):
     rght = models.PositiveIntegerField(db_index=True, editable=False)
     tree_id = models.PositiveIntegerField(db_index=True, editable=False)
     
-    login_required = models.BooleanField(_("login required"),default=False)
+    login_required = models.BooleanField(_("login required (applied to all childs)"),default=False)
     limit_visibility_in_menu = models.SmallIntegerField(_("menu visibility"), default=None, null=True, blank=True, choices=LIMIT_VISIBILITY_IN_MENU_CHOICES, db_index=True, help_text=_("limit when this page is visible in the menu"))
     
     # Placeholders (plugins)
@@ -317,11 +317,22 @@ class Page(MpttPublisher):
             self.created_by = self.changed_by 
         
         if commit:
+            """ WSB set login required if parent have login required """
+            if self.parent and self.parent.login_required:
+                self.login_required = True
+
             if no_signals:# ugly hack because of mptt
                 super(Page, self).save_base(cls=self.__class__, **kwargs)
             else:
                 super(Page, self).save(**kwargs)
-        
+
+            """ hack WSB save set login_required to child pages  """
+            descendants = list(self.get_descendants().order_by('-rght'))
+            for page in descendants:
+                page.login_required = self.login_required
+                page.save()
+                
+
         #if commit and (publish_directly or created and not under_moderation):
         if self.publisher_is_draft and commit and publish_directly:
             self.publish()
@@ -683,6 +694,23 @@ class Page(MpttPublisher):
         if not settings.CMS_MODERATOR:
             return False
         return self.has_generic_permission(request, "moderate")
+
+    # XXX BD WSB
+    def has_view_permission(self, request):
+        """ Dirty hack """
+        for test in (
+            "has_change_permission",
+            "has_publish_permission",
+            "has_delete_permission",
+            "has_advanced_settings_permission",
+            "has_add_permission",
+            "has_move_page_permission",
+            "has_moderate_permission",
+            ):
+            if getattr(self, test)(request):
+                return True
+        return self.has_generic_permission(request, "can_see")
+    
     
     def has_generic_permission(self, request, type):
         """
