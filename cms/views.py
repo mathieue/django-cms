@@ -6,7 +6,7 @@ from cms.utils.moderator import get_page_queryset
 from django.contrib.sites.models import Site
 from django.core.urlresolvers import reverse
 from django.db.models.query_utils import Q
-from django.http import Http404, HttpResponseRedirect
+from django.http import Http404, HttpResponseRedirect, HttpResponseForbidden
 from django.shortcuts import get_object_or_404
 from django.utils.http import urlquote
 from django.conf import settings as django_settings
@@ -107,6 +107,7 @@ def details(request, page_id=None, slug=None, template_name=settings.CMS_TEMPLAT
         raise Http404("CMS: No page found for site %s" % unicode(site.name))
     
     if current_page:
+            
         has_change_permissions = current_page.has_change_permission(request)
         request._current_page_cache = current_page
         
@@ -124,6 +125,9 @@ def details(request, page_id=None, slug=None, template_name=settings.CMS_TEMPLAT
                 path = urlquote(request.get_full_path())
             tup = django_settings.LOGIN_URL , "next", path
             return HttpResponseRedirect('%s?%s=%s' % tup)
+
+        if current_page.login_required and not current_page.has_view_permission(request):
+            return HttpResponseForbidden("You don't have the rights to access this resource")
     else:
         has_change_permissions = False
     return template_name, locals()

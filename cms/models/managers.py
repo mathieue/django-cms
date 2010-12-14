@@ -403,7 +403,11 @@ class PagePermissionsPermissionManager(models.Manager):
         if not settings.CMS_MODERATOR:
             return []
         return self.__get_id_list(user, site, "can_moderate")
-    
+
+    def get_can_see_id_list(self, user, site):
+        return self.__get_id_list(user, site, "can_see")
+        
+
     '''
     def get_change_list_id_list(self, user, site):
         """This is used just in admin now. Gives all ids where user haves can_edit
@@ -430,7 +434,12 @@ class PagePermissionsPermissionManager(models.Manager):
         # TODO: result of this method should be cached per user, and cache should
         # be cleaned after some change in permissions / globalpermission
         
-        if not user.is_authenticated() or not user.is_staff:
+        #if not user.is_authenticated() or not user.is_staff:
+        #    return []
+        if not user.is_authenticated():
+            return []
+
+        if not (attr=='can_see' or user.is_staff):
             return []
         
         if user.is_superuser or not settings.CMS_PERMISSION:

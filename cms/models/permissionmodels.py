@@ -25,6 +25,7 @@ class AbstractPagePermission(models.Model):
     can_change_permissions = models.BooleanField(_("can change permissions"), default=False, help_text=_("on page level"))
     can_move_page = models.BooleanField(_("can move"), default=True)
     can_moderate = models.BooleanField(_("can moderate"), default=True)
+    can_see = models.BooleanField(_("can see"), default=True)
     
     class Meta:
         abstract = True
