@@ -3,7 +3,6 @@ from cms.admin.dialog.views import get_copy_dialog
 from cms.admin.forms import PageForm, PageAddForm
 from cms.admin.permissionadmin import PAGE_ADMIN_INLINES, \
     PagePermissionInlineAdmin
-from cms.utils.helpers import make_revision_with_plugins
 from cms.admin.views import revert_plugins
 from cms.apphook_pool import apphook_pool
 from cms.exceptions import NoPermissionsException
@@ -17,6 +16,8 @@ from cms.models.placeholdermodel import Placeholder
 from cms.plugin_pool import plugin_pool
 from cms.utils import get_template_from_request, get_language_from_request
 from cms.utils.admin import render_admin_menu_item
+from cms.utils.copy_plugins import copy_plugins_to
+from cms.utils.helpers import make_revision_with_plugins
 from cms.utils.moderator import update_moderation_message, \
     get_test_moderation_level, moderator_should_approve, approve_page, \
     will_require_moderation
@@ -925,9 +926,6 @@ class PageAdmin(model_admin):
             return HttpResponseRedirect("../../")
 
         response = super(PageAdmin, self).delete_view(request, object_id, *args, **kwargs)
-        public = page.publisher_public
-        if request.method == 'POST' and response.status_code == 302 and public:
-            public.delete()
         return response
 
     @create_on_success
@@ -1048,7 +1046,7 @@ class PageAdmin(model_admin):
         page = get_object_or_404(Page, pk=page_id)
         if page.has_publish_permission(request):
             page.published = not page.published
-            page.save(force_state=Page.MODERATOR_NEED_APPROVEMENT)
+            page.save()
             return render_admin_menu_item(request, page)
         else:
             return HttpResponseForbidden(_("You do not have permission to publish this page"))
@@ -1152,11 +1150,9 @@ class PageAdmin(model_admin):
             if language == copy_from:
                 return HttpResponseBadRequest(_("Language must be different than the copied language!"))
             plugins = list(placeholder.cmsplugin_set.filter(language=copy_from).order_by('tree_id', '-rght'))
-            ptree = []
-
-            for plug in plugins:
-                plug.copy_plugin(placeholder, language, ptree)
-
+            
+            copy_plugins_to(plugins, placeholder, language)
+            
             if page and "reversion" in settings.INSTALLED_APPS:
                 make_revision_with_plugins(page)
                 reversion.revision.user = request.user
@@ -1365,5 +1361,10 @@ class PageAdmin(model_admin):
                 page_moderator.save()
                 return render_admin_menu_item(request, page)
         raise Http404
+    
+    def lookup_allowed(self, key):
+        if key == 'site__exact':
+            return True
+        return super(PageAdmin, self).lookup_allowed(key)
 
 admin.site.register(Page, PageAdmin)

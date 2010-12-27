@@ -2,6 +2,7 @@ from cms.exceptions import NoHomeFound
 from cms.models.managers import PageManager, PagePermissionsPermissionManager
 from cms.models.placeholdermodel import Placeholder
 from cms.models.pluginmodel import CMSPlugin
+from cms.utils.copy_plugins import copy_plugins_to
 from cms.utils.helpers import reversion_register
 from cms.utils.i18n import get_fallback_languages
 from cms.utils.page import get_available_slug, check_title_slugs
@@ -243,9 +244,10 @@ class Page(MpttPublisher):
                     ph.pk = None # make a new instance
                     ph.save()
                     page.placeholders.add(ph)
-                ptree = []
-                for p in plugins:
-                    p.copy_plugin(ph, p.language, ptree)
+                if plugins:
+                    language = plugins[0].language
+                    copy_plugins_to(plugins, ph, language)
+                    
         # invalidate the menu for this site
         menu_pool.clear(site_id=site.pk)
         return page_copy   # return the page_copy or None
@@ -328,8 +330,13 @@ class Page(MpttPublisher):
                 
 
         #if commit and (publish_directly or created and not under_moderation):
-        if self.publisher_is_draft and commit and publish_directly:
-            self.publish()
+        if self.publisher_is_draft:
+            if self.published:
+                if commit and publish_directly:
+                    self.publish()
+            elif self.publisher_public and self.publisher_public.published:
+                self.publisher_public.published = False
+                self.publisher_public.save()
 
     @transaction.commit_manually
     def publish(self):
@@ -350,12 +357,10 @@ class Page(MpttPublisher):
         # publish, but only if all parents are published!!
         published = None
 
-        try:
-            if not self.pk:
-                self.save()
+        if not self.pk:
+            self.save()
 
-            if not self._publisher_can_publish():
-                raise PublisherCantPublish
+        if self._publisher_can_publish():
 
             ########################################################################
             # delete the existing public page using transaction block to ensure save() and delete() do not conflict
@@ -387,8 +392,7 @@ class Page(MpttPublisher):
             self.publisher_state = Publisher.PUBLISHER_STATE_DEFAULT
             self._publisher_keep_state = True        
             published = True
-            
-        except PublisherCantPublish:
+        else:
             self.moderator_state = Page.MODERATOR_APPROVED_WAITING_FOR_PARENTS
 
         self.save(change_state=False)
