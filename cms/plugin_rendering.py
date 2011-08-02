@@ -132,6 +132,9 @@ def render_placeholder(placeholder, context_to_copy, name_fallback="Placeholder"
         template = page.template
     else:
         template = None
+        fallback = getattr(django_settings, 'CMS_PLACEHOLDER_LANG_FALLBACK', None)
+        if not plugins and fallback:
+            plugins = [plugin for plugin in get_plugins(request, placeholder, lang=fallback)]
     # Add extra context as defined in settings, but do not overwrite existing context variables,
     # since settings are general and database/template are specific
     # TODO this should actually happen as a plugin context processor, but these currently overwrite 
