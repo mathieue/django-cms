@@ -738,10 +738,10 @@ class Page(MpttPublisher):
             ):
             if getattr(self, test)(request):
                 return True
-        return self.has_generic_permission(request, "can_see")
+        return self.has_generic_permission(request, "can_see", force_public=True)
     
     
-    def has_generic_permission(self, request, type):
+    def has_generic_permission(self, request, type, force_public=False):
         """
         Return true if the current user has permission on the page.
         Return the string 'All' if the user has all rights.
@@ -751,7 +751,11 @@ class Page(MpttPublisher):
             or request.user.pk != self.permission_user_cache.pk:
             from cms.utils.permissions import has_generic_permission
             self.permission_user_cache = request.user
-            setattr(self, att_name, has_generic_permission(self.id, request.user, type, self.site_id))
+            if force_public and self.publisher_state:
+                id = self.publisher_public_id
+            else:
+                id = self.id
+            setattr(self, att_name, has_generic_permission(id, request.user, type, self.site_id))
             if getattr(self, att_name):
                 self.permission_edit_cache = True
                 
